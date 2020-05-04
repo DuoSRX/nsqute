@@ -1,21 +1,28 @@
+#![allow(dead_code)]
+
 use std::io::prelude::*;
 use std::net::TcpStream;
 use byteorder::{BigEndian, ByteOrder};
-use bytes::BufMut;
 use crossbeam_channel::{Sender, Receiver};
 use std::collections::HashMap;
 use std::thread;
 use std::borrow::Cow;
-use std::sync::Arc;
+
+struct Handler {}
+
+impl MessageHandler for Handler {
+    fn handle_message(&self, message: Message) {
+        dbg!(&message);
+        message.requeue();
+    }
+}
 
 fn main() -> std::io::Result<()> {
-    let mut consumer = Consumer::new("sometopic", "chanchan");
+    let mut consumer = Consumer::new("plumber_backfills", "plumber");
     consumer.add_handler(Box::new(Handler{}));
     consumer.connect_to_nsqd("127.0.0.1:4150");
 
-    for thr in consumer.threads {
-        thr.join().unwrap();
-    }
+    let _ = consumer.done.rx.recv();
 
     // let identify = "{\"client_id\":\"nsqute\"}".as_bytes();
     // let mut msg = Vec::new();
@@ -28,14 +35,24 @@ fn main() -> std::io::Result<()> {
     // stream.read(&mut buf)?;
     // dbg!(String::from_utf8_lossy(&buf));
 
-    // let message = "foo blah";
-    // let mut msg = Vec::new();
-    // msg.put(&b"PUB sometopic\n"[..]);
-    // msg.put_u32(message.len() as u32);
-    // msg.put(message.as_bytes());
-    // stream.write(&msg)?;
-
     Ok(())
+}
+
+#[derive(Clone)]
+struct Channel<T> {
+    tx: Sender<T>,
+    rx: Receiver<T>
+}
+
+impl<T> Channel<T> {
+    fn unbounded() -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        Self { tx, rx }
+    }
+}
+
+trait MessageHandler {
+    fn handle_message(&self, message: Message);
 }
 
 struct Consumer {
@@ -44,12 +61,13 @@ struct Consumer {
     connections: HashMap<String, Connection>,
     msg_tx: Sender<Message>,
     msg_rx: Receiver<Message>,
-    pub threads: Vec<thread::JoinHandle<()>>,
+    done: Channel<bool>,
 }
 
 impl Consumer {
     pub fn new(topic: &str, channel: &str) -> Self {
         let (tx, rx): (Sender<Message>, Receiver<Message>) = crossbeam_channel::unbounded();
+        let done = Channel::unbounded();
 
         Self {
             topic: topic.to_string(),
@@ -57,7 +75,7 @@ impl Consumer {
             connections: HashMap::new(),
             msg_tx: tx,
             msg_rx: rx,
-            threads: Vec::new(),
+            done: done,
         }
     }
 
@@ -66,22 +84,16 @@ impl Consumer {
 
         let msg = format!("SUB {} {}\n", self.topic, self.channel);
         connection.write(msg.as_bytes()).unwrap();
-        let res = connection.read(4 + 4 + 6).unwrap();
-        dbg!(String::from_utf8_lossy(res.as_slice()));
         connection.write(&b"RDY 1\n"[..]).unwrap();
 
-        thread::spawn(move ||
-            connection.read_loop()
-        );
-
         // TODO: Check if we're already connected
-        // self.connections.insert(address.to_string(), connection);
+        self.connections.insert(address.to_string(), connection);
     }
 
     pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {
         let rx = self.msg_rx.clone();
 
-        let thr = thread::spawn(move || {
+        thread::spawn(move || {
             loop {
                 match rx.recv() {
                     Ok(msg) => handler.handle_message(msg),
@@ -91,33 +103,12 @@ impl Consumer {
                 }
             }
         });
-
-        self.threads.push(thr);
     }
-}
-
-trait MessageHandler {
-    fn handle_message(&self, message: Message);
-}
-
-struct Handler {}
-
-impl MessageHandler for Handler {
-    fn handle_message(&self, message: Message) {
-        dbg!(message.body_as_string());
-    }
-}
-
-#[derive(Debug,PartialEq)]
-enum FrameType {
-    Response,
-    Error,
-    Message
 }
 
 struct Connection {
     stream: TcpStream,
-    msg_tx: Sender<Message>,
+    write_tx: Sender<Vec<u8>>
 }
 
 impl Connection {
@@ -125,47 +116,66 @@ impl Connection {
         let mut stream = TcpStream::connect(address).unwrap();
         stream.write(b"  V2").unwrap();
 
-        Self {
-            stream,
-            msg_tx,
-        }
-    }
+        let tx = msg_tx.clone();
+        let mut stream_clone = stream.try_clone().unwrap();
+        let mut stream_clone2 = stream.try_clone().unwrap();
 
-    fn read_loop(&mut self) {
-        loop {
-            self.read_frame().unwrap();
-        }
+        let (write_tx, write_rx) = crossbeam_channel::unbounded();
+        let write_tx2 = write_tx.clone();
+
+        let connection = Self {
+            stream,
+            write_tx
+        };
+
+        // Read Loop
+        thread::spawn(move ||
+            loop {
+                Connection::read_frame(&mut stream_clone, &tx, &write_tx2).unwrap();
+            }
+        );
+
+        // Write Loop
+        thread::spawn(move ||
+            loop {
+                let cmd = write_rx.recv().unwrap();
+                stream_clone2.write(&cmd).unwrap();
+            }
+        );
+
+        connection
     }
 
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
         self.stream.write(data)
     }
 
-    fn read(&mut self, n: usize) -> std::io::Result<Vec<u8>> {
+    fn read(stream: &mut TcpStream, n: usize) -> std::io::Result<Vec<u8>> {
         let mut buf: Vec<u8> = vec![0; n];
-        self.stream.read(&mut buf)?;
+        stream.read(&mut buf)?;
         Ok(buf)
     }
 
-    fn read_frame(&mut self) -> std::io::Result<()> {
+    fn read_frame(stream: &mut TcpStream, msg_tx: &Sender<Message>, write_tx: &Sender<Vec<u8>>) -> std::io::Result<()> {
         let mut buf = [0; 4];
-        self.stream.read(&mut buf)?;
+        stream.read(&mut buf)?;
+
         let size = BigEndian::read_u32(&buf);
-        dbg!(size);
+        let buf = Connection::read(stream, std::cmp::max(size as usize, 4))?;
 
-        let buf = self.read(size as usize)?;
-
-        let frame_type = match BigEndian::read_i32(&buf[0..4]) {
-            0 => FrameType::Response,
-            1 => FrameType::Error,
-            2 => FrameType::Message,
+        match BigEndian::read_i32(&buf[0..4]) {
+            0 => { // Response
+                dbg!(String::from_utf8_lossy(&buf[4..]));
+                return Ok(())
+            },
+            1 => { // Error
+                dbg!(size);
+                dbg!(String::from_utf8_lossy(&buf[4..]));
+                return Ok(())
+            },
+            2 => {}, // Message
             n => panic!("Unknown frame type: {}", n)
         };
-        dbg!(&frame_type);
-
-        if frame_type != FrameType::Message {
-            return Ok(())
-        }
 
         let buf = &buf[4..];
         let message = Message {
@@ -173,21 +183,21 @@ impl Connection {
             attempts:  BigEndian::read_u16(&buf[8..10]),
             id:        String::from_utf8_lossy(&buf[10..26]).into(),
             body:      buf[26..].into(),
+            conn_chan: write_tx.clone(),
         };
 
-        self.msg_tx.send(message).unwrap();
-        // self.write(&b"RDY 1\n"[..]).unwrap();
+        msg_tx.send(message).unwrap();
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
 struct Message {
     timestamp: i64,
     attempts: u16,
     id: String,
     body: Vec<u8>,
+    conn_chan: Sender<Vec<u8>>,
 }
 
 impl Message {
@@ -195,11 +205,29 @@ impl Message {
         String::from_utf8_lossy(&self.body)
     }
 
-//     fn finish(&self, stream: &mut TcpStream) {
-//         let mut msg = Vec::new();
-//         msg.put(&b"FIN "[..]);
-//         msg.put(self.id.as_bytes());
-//         msg.put(&b"\n"[..]);
-//         stream.write(&msg).unwrap();
-//     }
+    fn finish(&self) {
+        let fin = format!("FIN {}\n", self.id);
+        self.conn_chan.send(fin.into()).unwrap();
+    }
+
+    fn requeue(&self) {
+        let req = format!("REQ {} 5000\n", self.id);
+        self.conn_chan.send(req.into()).unwrap();
+    }
+
+    fn touch(&self) {
+        let touch = format!("TOUCH {}\n", self.id);
+        self.conn_chan.send(touch.into()).unwrap();
+    }
+}
+
+impl std::fmt::Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Message")
+            .field("id", &self.id)
+            .field("timestamp", &self.timestamp)
+            .field("attempts", &self.attempts)
+            .field("body", &self.body_as_string())
+            .finish()
+    }
 }
