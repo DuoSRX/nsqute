@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::net::ToSocketAddrs;
 use std::thread;
 
+use crate::channel::Channel;
 use crate::command::Command;
 use crate::message::Message;
-use crate::connection::{Connection, Channel};
+use crate::connection::Connection;
 
 pub trait MessageHandler {
     fn handle_message(&self, message: Message);

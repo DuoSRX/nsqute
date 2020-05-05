@@ -1,5 +1,6 @@
+use crate::channel::Channel;
 use crate::command::Command;
-use crate::connection::{Connection, Channel};
+use crate::connection::Connection;
 
 pub struct Producer {
     address: String,
