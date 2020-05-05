@@ -17,7 +17,7 @@ pub struct Connection {
 impl Connection {
     pub fn connect(address: &str) -> std::io::Result<Self> {
         let mut stream = TcpStream::connect(address)?;
-        stream.write(b"  V2")?;
+        stream.write_all(b"  V2")?;
 
         let commands: Channel<Command> = Channel::unbounded();
         let messages: Channel<Message> = Channel::unbounded();
@@ -57,13 +57,13 @@ impl Connection {
 
     fn read(stream: &mut TcpStream, n: usize) -> std::io::Result<Vec<u8>> {
         let mut buf: Vec<u8> = vec![0; n];
-        stream.read(&mut buf)?;
+        stream.read_exact(&mut buf)?;
         Ok(buf)
     }
 
     fn read_frame(stream: &mut TcpStream, msg_tx: &Sender<Message>, write_tx: &Sender<Command>) -> std::io::Result<()> {
         let mut buf = [0; 4];
-        stream.read(&mut buf)?;
+        stream.read_exact(&mut buf)?;
 
         let size = BigEndian::read_u32(&buf);
         let buf = Connection::read(stream, std::cmp::max(size as usize, 4))?;

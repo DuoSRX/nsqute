@@ -1,5 +1,7 @@
 use crossbeam_channel::{RecvError, SendError, Receiver, Sender};
 
+use std::clone::Clone;
+
 pub struct Channel<T> {
     pub tx: Sender<T>,
     pub rx: Receiver<T>
@@ -18,8 +20,10 @@ impl<T> Channel<T> {
     pub fn recv(&self) -> Result<T, RecvError> {
         self.rx.recv()
     }
+}
 
-    pub fn clone(&self) -> Self {
+impl<T> Clone for Channel<T> {
+    fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
             rx: self.rx.clone(),
