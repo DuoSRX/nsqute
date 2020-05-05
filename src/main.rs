@@ -3,9 +3,11 @@
 pub mod connection;
 pub mod consumer;
 pub mod message;
+pub mod producer;
 
 use consumer::*;
 use message::Message;
+use producer::Producer;
 
 struct Handler {}
 
@@ -20,6 +22,10 @@ fn main() -> std::io::Result<()> {
     let mut consumer = Consumer::new("plumber_backfills", "plumber");
     consumer.add_handler(Box::new(Handler{}));
     consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
+
+    let mut producer = Producer::new("127.0.0.1:4150".to_string());
+    producer.connect();
+    producer.publish("plumber_backfills", b"foo bar baz"[..].into());
 
     let _ = consumer.done.rx.recv();
 
