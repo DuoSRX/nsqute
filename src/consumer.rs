@@ -22,6 +22,7 @@ pub struct Consumer {
 struct NsqLookupdProducer {
     remote_address: String,
     hostname: String,
+    broadcast_address: String,
     tcp_port: u16,
 }
 
@@ -49,8 +50,8 @@ impl Consumer {
         let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
 
         for producer in res.producers {
-            let hostname: &str = &producer.hostname;
-            let address = (hostname, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
+            let broadcast: &str = &producer.broadcast_address;
+            let address = (broadcast, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
             self.connect_to_nsqd(&address.to_string())
         }
     }
