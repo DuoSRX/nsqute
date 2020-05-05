@@ -6,24 +6,46 @@ use std::thread;
 
 use crate::message::Message;
 
+pub struct Channel<T> {
+    pub tx: Sender<T>,
+    pub rx: Receiver<T>
+}
+
+impl<T> Channel<T> {
+    pub fn unbounded() -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        Self { tx, rx }
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+            rx: self.rx.clone(),
+        }
+    }
+}
+
 pub struct Connection {
     stream: TcpStream,
-    write_tx: Sender<Vec<u8>>
+    pub messages: Channel<Message>,
+    pub commands: Channel<Vec<u8>>,
 }
 
 impl Connection {
-    pub fn connect(address: &str, msg_tx: Sender<Message>) -> Self {
+    pub fn connect(address: &str) -> Self {
         let mut stream = TcpStream::connect(address).unwrap();
         stream.write(b"  V2").unwrap();
 
-        let (write_tx, write_rx) = crossbeam_channel::unbounded();
+        let commands = Channel::unbounded();
+        let messages = Channel::unbounded();
 
-        Connection::read_loop(msg_tx.clone(), write_tx.clone(), &stream);
-        Connection::write_loop(write_rx.clone(), &stream);
+        Connection::read_loop(messages.tx.clone(), commands.tx.clone(), &stream);
+        Connection::write_loop(commands.rx.clone(), &stream);
 
         Connection {
             stream,
-            write_tx
+            messages,
+            commands,
         }
     }
 

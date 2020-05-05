@@ -1,24 +1,10 @@
-use crossbeam_channel::{Receiver,Sender};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::ToSocketAddrs;
 use std::thread;
 
 use crate::message::Message;
-use crate::connection::Connection;
-
-#[derive(Clone)]
-pub struct Channel<T> {
-    pub tx: Sender<T>,
-    pub rx: Receiver<T>
-}
-
-impl<T> Channel<T> {
-    fn unbounded() -> Self {
-        let (tx, rx) = crossbeam_channel::unbounded();
-        Self { tx, rx }
-    }
-}
+use crate::connection::{Connection, Channel};
 
 pub trait MessageHandler {
     fn handle_message(&self, message: Message);
@@ -70,11 +56,20 @@ impl Consumer {
     }
 
     pub fn connect_to_nsqd(&mut self, address: &str) {
-        let mut connection = Connection::connect(address, self.messages.tx.clone());
+        let mut connection = Connection::connect(address);
 
         let msg = format!("SUB {} {}\n", self.topic, self.channel);
         connection.write(msg.as_bytes()).unwrap();
         connection.write(&b"RDY 1\n"[..]).unwrap();
+
+        let connection_messages = connection.messages.rx.clone();
+        let incoming_messages = self.messages.tx.clone();
+
+        thread::spawn(move || {
+            loop {
+                incoming_messages.send(connection_messages.recv().unwrap()).unwrap();
+            }
+        });
 
         // TODO: Check if we're already connected
         self.connections.insert(address.to_string(), connection);
