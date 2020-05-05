@@ -1,30 +1,5 @@
-use bytes::{BufMut};
-
+use crate::command::Command;
 use crate::connection::{Connection, Channel};
-
-pub enum Command<'a> {
-    Nop,
-    Publish { topic: &'a str, body: Vec<u8> }
-}
-
-impl Command<'_> {
-    fn make(&self) -> Vec<u8> {
-        use Command::*;
-
-        match self {
-            Nop => b"NOP\n".to_vec(),
-            Publish { topic, body } => {
-                let mut msg = Vec::new();
-                msg.put(&b"PUB "[..]);
-                msg.put(topic.as_bytes());
-                msg.put(&b"\n"[..]);
-                msg.put_u32(body.len() as u32);
-                msg.put_slice(body);
-                msg
-            }
-        }
-    }
-}
 
 pub struct Producer<'a> {
     address: String,

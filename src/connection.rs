@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::thread;
 
+use crate::command::Command;
 use crate::message::Message;
 
 pub struct Channel<T> {
@@ -49,12 +50,16 @@ impl Connection {
         }
     }
 
+    pub fn send_command(&mut self, command: Command) {
+        self.commands.tx.send(command.make()).unwrap();
+    }
+
     fn write_loop(rx: Receiver<Vec<u8>>, stream: &TcpStream) {
         let mut stream = stream.try_clone().unwrap();
         thread::spawn(move ||
             loop {
                 let cmd = rx.recv().unwrap();
-                stream.write(&cmd).unwrap();
+                stream.write_all(&cmd).unwrap();
             }
         );
     }
@@ -68,12 +73,7 @@ impl Connection {
         );
     }
 
-    pub fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        self.stream.write_all(data)?;
-        Ok(data.len())
-    }
-
-    pub fn read(stream: &mut TcpStream, n: usize) -> std::io::Result<Vec<u8>> {
+    fn read(stream: &mut TcpStream, n: usize) -> std::io::Result<Vec<u8>> {
         let mut buf: Vec<u8> = vec![0; n];
         stream.read(&mut buf)?;
         Ok(buf)

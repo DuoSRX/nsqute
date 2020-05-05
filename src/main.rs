@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod connection;
+pub mod command;
 pub mod consumer;
 pub mod message;
 pub mod producer;
@@ -9,8 +10,8 @@ use consumer::*;
 use message::Message;
 use producer::Producer;
 
-use std::thread;
-use std::time::Duration;
+// use std::thread;
+// use std::time::Duration;
 
 struct Handler {}
 
