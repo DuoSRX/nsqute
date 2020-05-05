@@ -9,6 +9,9 @@ use consumer::*;
 use message::Message;
 use producer::Producer;
 
+use std::thread;
+use std::time::Duration;
+
 struct Handler {}
 
 impl MessageHandler for Handler {

@@ -1,4 +1,5 @@
-use byteorder::{BigEndian, ByteOrder};
+use bytes::{BufMut};
+
 use crate::connection::{Connection, Channel};
 
 pub enum Command<'a> {
@@ -13,10 +14,13 @@ impl Command<'_> {
         match self {
             Nop => b"NOP\n".to_vec(),
             Publish { topic, body } => {
-                let cmd = format!("PUB {}\n", topic);
-                let mut buf = [0; 4];
-                BigEndian::write_u32(&mut buf, body.len() as u32);
-                vec![cmd.as_bytes(), &buf, &body].concat()
+                let mut msg = Vec::new();
+                msg.put(&b"PUB "[..]);
+                msg.put(topic.as_bytes());
+                msg.put(&b"\n"[..]);
+                msg.put_u32(body.len() as u32);
+                msg.put_slice(body);
+                msg
             }
         }
     }

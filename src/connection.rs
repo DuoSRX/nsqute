@@ -69,7 +69,8 @@ impl Connection {
     }
 
     pub fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        self.stream.write(data)
+        self.stream.write_all(data)?;
+        Ok(data.len())
     }
 
     pub fn read(stream: &mut TcpStream, n: usize) -> std::io::Result<Vec<u8>> {
@@ -87,7 +88,7 @@ impl Connection {
 
         match BigEndian::read_i32(&buf[0..4]) {
             0 => { // Response
-                dbg!(String::from_utf8_lossy(&buf[4..]));
+                // dbg!(String::from_utf8_lossy(&buf[4..]));
                 return Ok(())
             },
             1 => { // Error
