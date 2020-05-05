@@ -7,6 +7,8 @@ use crossbeam_channel::{Sender, Receiver};
 use std::collections::HashMap;
 use std::thread;
 use std::borrow::Cow;
+use serde::{Deserialize, Serialize};
+use std::net::ToSocketAddrs;
 
 struct Handler {}
 
@@ -20,7 +22,7 @@ impl MessageHandler for Handler {
 fn main() -> std::io::Result<()> {
     let mut consumer = Consumer::new("plumber_backfills", "plumber");
     consumer.add_handler(Box::new(Handler{}));
-    consumer.connect_to_nsqd("127.0.0.1:4150");
+    consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
 
     let _ = consumer.done.rx.recv();
 
@@ -64,6 +66,19 @@ struct Consumer {
     done: Channel<bool>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct NsqLookupdProducer {
+    remote_address: String,
+    hostname: String,
+    tcp_port: u16,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NsqLookupdResponse {
+    channels: Vec<String>,
+    producers: Vec<NsqLookupdProducer>,
+}
+
 impl Consumer {
     pub fn new(topic: &str, channel: &str) -> Self {
         let (tx, rx): (Sender<Message>, Receiver<Message>) = crossbeam_channel::unbounded();
@@ -77,6 +92,14 @@ impl Consumer {
             msg_rx: rx,
             done: done,
         }
+    }
+
+    pub fn connect_to_nsqlookupd(&mut self, address: &str) {
+        let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
+        let producer = res.producers.first().unwrap();
+        let hostname: &str = &producer.hostname;
+        let address = (hostname, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
+        self.connect_to_nsqd(&address.to_string())
     }
 
     pub fn connect_to_nsqd(&mut self, address: &str) {
