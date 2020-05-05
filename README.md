@@ -5,7 +5,13 @@ Work in progress
 ## TODO
 
 * Producer
-* Error handling (reconnect on failure)
+* Error handling
+  * Reconnection on failure
+  * Acknowledge non-fatal errors (`FIN_FAILED`...etc)
 * Nsqlookupd
-* RDY and max_in_flight rebalancing
+  * Connect to multiple nsqds
+  * Polling for new servers
 * Configuration
+* RDY and max_in_flight rebalancing
+* Better logging
+* Mayyyyyybe use Async

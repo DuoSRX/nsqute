@@ -96,10 +96,12 @@ impl Consumer {
 
     pub fn connect_to_nsqlookupd(&mut self, address: &str) {
         let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
-        let producer = res.producers.first().unwrap();
-        let hostname: &str = &producer.hostname;
-        let address = (hostname, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
-        self.connect_to_nsqd(&address.to_string())
+
+        for producer in res.producers {
+            let hostname: &str = &producer.hostname;
+            let address = (hostname, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
+            self.connect_to_nsqd(&address.to_string())
+        }
     }
 
     pub fn connect_to_nsqd(&mut self, address: &str) {
