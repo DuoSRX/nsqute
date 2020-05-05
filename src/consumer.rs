@@ -28,8 +28,7 @@ pub struct Consumer {
     topic: String,
     channel: String,
     connections: HashMap<String, Connection>,
-    msg_tx: Sender<Message>,
-    msg_rx: Receiver<Message>,
+    messages: Channel<Message>,
     pub done: Channel<bool>,
 }
 
@@ -48,16 +47,15 @@ struct NsqLookupdResponse {
 
 impl Consumer {
     pub fn new(topic: &str, channel: &str) -> Self {
-        let (tx, rx): (Sender<Message>, Receiver<Message>) = crossbeam_channel::unbounded();
+        let messages = Channel::unbounded();
         let done = Channel::unbounded();
 
         Self {
             topic: topic.to_string(),
             channel: channel.to_string(),
             connections: HashMap::new(),
-            msg_tx: tx,
-            msg_rx: rx,
-            done: done,
+            done,
+            messages,
         }
     }
 
@@ -72,7 +70,7 @@ impl Consumer {
     }
 
     pub fn connect_to_nsqd(&mut self, address: &str) {
-        let mut connection = Connection::connect(address, self.msg_tx.clone());
+        let mut connection = Connection::connect(address, self.messages.tx.clone());
 
         let msg = format!("SUB {} {}\n", self.topic, self.channel);
         connection.write(msg.as_bytes()).unwrap();
@@ -83,7 +81,7 @@ impl Consumer {
     }
 
     pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {
-        let rx = self.msg_rx.clone();
+        let rx = self.messages.rx.clone();
 
         thread::spawn(move || {
             loop {

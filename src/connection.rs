@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, ByteOrder};
-use crossbeam_channel::{Sender};
+use crossbeam_channel::{Receiver, Sender};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::thread;
@@ -16,34 +16,34 @@ impl Connection {
         let mut stream = TcpStream::connect(address).unwrap();
         stream.write(b"  V2").unwrap();
 
-        let tx = msg_tx.clone();
-        let mut stream_clone = stream.try_clone().unwrap();
-        let mut stream_clone2 = stream.try_clone().unwrap();
-
         let (write_tx, write_rx) = crossbeam_channel::unbounded();
-        let write_tx2 = write_tx.clone();
 
-        let connection = Self {
+        Connection::read_loop(msg_tx.clone(), write_tx.clone(), &stream);
+        Connection::write_loop(write_rx.clone(), &stream);
+
+        Connection {
             stream,
             write_tx
-        };
+        }
+    }
 
-        // Read Loop
+    fn write_loop(rx: Receiver<Vec<u8>>, stream: &TcpStream) {
+        let mut stream = stream.try_clone().unwrap();
         thread::spawn(move ||
             loop {
-                Connection::read_frame(&mut stream_clone, &tx, &write_tx2).unwrap();
+                let cmd = rx.recv().unwrap();
+                stream.write(&cmd).unwrap();
             }
         );
+    }
 
-        // Write Loop
+    fn read_loop(messages: Sender<Message>, commands: Sender<Vec<u8>>, stream: &TcpStream) {
+        let mut stream = stream.try_clone().unwrap();
         thread::spawn(move ||
             loop {
-                let cmd = write_rx.recv().unwrap();
-                stream_clone2.write(&cmd).unwrap();
+                Connection::read_frame(&mut stream, &messages, &commands).unwrap();
             }
         );
-
-        connection
     }
 
     pub fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
