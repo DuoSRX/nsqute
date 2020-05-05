@@ -18,9 +18,10 @@ impl Producer {
         }
     }
 
-    pub fn connect(&mut self) {
-        let conn = Connection::connect(&self.address);
+    pub fn connect(&mut self) -> std::io::Result<()> {
+        let conn = Connection::connect(&self.address)?;
         self.connection = Some(conn);
+        Ok(())
     }
 
     pub fn publish(&mut self, topic: String, body: Vec<u8>) {

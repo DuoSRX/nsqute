@@ -53,12 +53,13 @@ impl Consumer {
         for producer in res.producers {
             let broadcast: &str = &producer.broadcast_address;
             let address = (broadcast, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
-            self.connect_to_nsqd(&address.to_string())
+            // TODO: Remove handle errors here
+            self.connect_to_nsqd(&address.to_string()).unwrap()
         }
     }
 
-    pub fn connect_to_nsqd(&mut self, address: &str) {
-        let mut connection = Connection::connect(address);
+    pub fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
+        let mut connection = Connection::connect(address)?;
 
         connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() });
         connection.send_command(Command::Ready(2));
@@ -74,6 +75,8 @@ impl Consumer {
 
         // TODO: Check if we're already connected
         self.connections.insert(address.to_string(), connection);
+
+        Ok(())
     }
 
     pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {

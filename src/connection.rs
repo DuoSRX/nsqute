@@ -41,9 +41,9 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn connect(address: &str) -> Self {
-        let mut stream = TcpStream::connect(address).unwrap();
-        stream.write(b"  V2").unwrap();
+    pub fn connect(address: &str) -> std::io::Result<Self> {
+        let mut stream = TcpStream::connect(address)?;
+        stream.write(b"  V2")?;
 
         let commands: Channel<Command> = Channel::unbounded();
         let messages: Channel<Message> = Channel::unbounded();
@@ -51,11 +51,11 @@ impl Connection {
         Connection::read_loop(messages.tx.clone(), commands.tx.clone(), &stream);
         Connection::write_loop(commands.rx.clone(), &stream);
 
-        Connection {
+        Ok(Connection {
             stream,
             messages,
             commands,
-        }
+        })
     }
 
     pub fn send_command(&mut self, command: Command) {
