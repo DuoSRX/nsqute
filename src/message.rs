@@ -1,12 +1,14 @@
 use crossbeam_channel::{Sender};
 use std::borrow::Cow;
 
+use crate::command::Command;
+
 pub struct Message {
     pub timestamp: i64,
     pub attempts: u16,
     pub id: String,
     pub body: Vec<u8>,
-    pub conn_chan: Sender<Vec<u8>>,
+    pub conn_chan: Sender<Command>,
 }
 
 impl Message {
@@ -15,18 +17,15 @@ impl Message {
     }
 
     pub fn finish(&self) {
-        let fin = format!("FIN {}\n", self.id);
-        self.conn_chan.send(fin.into()).unwrap();
+        self.conn_chan.send(Command::Finish(self.id.clone())).unwrap();
     }
 
     pub fn requeue(&self) {
-        let req = format!("REQ {} 5000\n", self.id);
-        self.conn_chan.send(req.into()).unwrap();
+        self.conn_chan.send(Command::Requeue(self.id.clone(), 5000)).unwrap();
     }
 
     pub fn touch(&self) {
-        let touch = format!("TOUCH {}\n", self.id);
-        self.conn_chan.send(touch.into()).unwrap();
+        self.conn_chan.send(Command::Touch(self.id.clone())).unwrap();
     }
 }
 

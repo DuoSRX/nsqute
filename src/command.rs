@@ -1,14 +1,17 @@
 use bytes::{BufMut};
 
 #[derive(Debug)]
-pub enum Command<'a> {
+pub enum Command {
     Nop,
+    Finish(String),
+    Touch(String),
+    Requeue(String, u32),
     Ready(usize),
-    Publish { topic: &'a str, body: Vec<u8> },
-    Subscribe { topic: &'a str, channel: &'a str }
+    Publish { topic: String, body: Vec<u8> },
+    Subscribe { topic: String, channel: String }
 }
 
-impl Command<'_> {
+impl Command {
     pub fn make(&self) -> Vec<u8> {
         use Command::*;
 
@@ -23,8 +26,17 @@ impl Command<'_> {
                 msg.put_slice(body);
                 msg
             },
+            Finish(id) => {
+                format!("FIN {}\n", id).into_bytes()
+            },
+            Touch(id) => {
+                format!("TOUCH {}\n", id).into_bytes()
+            },
+            Requeue(id, n) => {
+                format!("REQ {} {}\n", id, n).into_bytes()
+            },
             Ready(n) => {
-              format!("RDY {}\n", n).into_bytes()
+                format!("RDY {}\n", n).into_bytes()
             },
             Subscribe { topic, channel } => {
                 format!("SUB {} {}\n", topic, channel).into_bytes()

@@ -29,7 +29,7 @@ fn main() -> std::io::Result<()> {
 
     let mut producer = Producer::new("127.0.0.1:4150".to_string());
     producer.connect();
-    producer.publish("plumber_backfills", b"foo bar baz"[..].into());
+    producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into());
 
     let _ = consumer.done.rx.recv();
 

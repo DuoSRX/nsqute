@@ -1,13 +1,13 @@
 use crate::command::Command;
 use crate::connection::{Connection, Channel};
 
-pub struct Producer<'a> {
+pub struct Producer {
     address: String,
     connection: Option<Connection>,
-    commands: Channel<Command<'a>>,
+    commands: Channel<Command>,
 }
 
-impl Producer<'_> {
+impl Producer {
     pub fn new(address: String) -> Self {
         let commands = Channel::unbounded();
 
@@ -23,13 +23,10 @@ impl Producer<'_> {
         self.connection = Some(conn);
     }
 
-    pub fn publish(&mut self, topic: &str, body: Vec<u8>) {
-        let command = Command::Publish { topic, body };
-        self.send_command(command);
-    }
-
-    fn send_command(&mut self, command: Command) {
-        let msg = command.make();
-        self.connection.as_ref().unwrap().commands.tx.send(msg).unwrap();
+    pub fn publish(&mut self, topic: String, body: Vec<u8>) {
+        if let Some(ref mut conn) = self.connection {
+            let command = Command::Publish { topic, body };
+            conn.send_command(command);
+        }
     }
 }

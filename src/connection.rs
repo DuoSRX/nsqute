@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, ByteOrder};
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{RecvError, SendError, Receiver, Sender};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::thread;
@@ -18,6 +18,14 @@ impl<T> Channel<T> {
         Self { tx, rx }
     }
 
+    pub fn send(&self, msg: T) -> Result<(), SendError<T>> {
+        self.tx.send(msg)
+    }
+
+    pub fn recv(&self) -> Result<T, RecvError> {
+        self.rx.recv()
+    }
+
     pub fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
@@ -29,7 +37,7 @@ impl<T> Channel<T> {
 pub struct Connection {
     stream: TcpStream,
     pub messages: Channel<Message>,
-    pub commands: Channel<Vec<u8>>,
+    pub commands: Channel<Command>,
 }
 
 impl Connection {
@@ -37,8 +45,8 @@ impl Connection {
         let mut stream = TcpStream::connect(address).unwrap();
         stream.write(b"  V2").unwrap();
 
-        let commands = Channel::unbounded();
-        let messages = Channel::unbounded();
+        let commands: Channel<Command> = Channel::unbounded();
+        let messages: Channel<Message> = Channel::unbounded();
 
         Connection::read_loop(messages.tx.clone(), commands.tx.clone(), &stream);
         Connection::write_loop(commands.rx.clone(), &stream);
@@ -51,20 +59,20 @@ impl Connection {
     }
 
     pub fn send_command(&mut self, command: Command) {
-        self.commands.tx.send(command.make()).unwrap();
+        self.commands.tx.send(command).unwrap();
     }
 
-    fn write_loop(rx: Receiver<Vec<u8>>, stream: &TcpStream) {
+    fn write_loop(rx: Receiver<Command>, stream: &TcpStream) {
         let mut stream = stream.try_clone().unwrap();
         thread::spawn(move ||
             loop {
                 let cmd = rx.recv().unwrap();
-                stream.write_all(&cmd).unwrap();
+                stream.write_all(&cmd.make()).unwrap();
             }
         );
     }
 
-    fn read_loop(messages: Sender<Message>, commands: Sender<Vec<u8>>, stream: &TcpStream) {
+    fn read_loop(messages: Sender<Message>, commands: Sender<Command>, stream: &TcpStream) {
         let mut stream = stream.try_clone().unwrap();
         thread::spawn(move ||
             loop {
@@ -79,7 +87,7 @@ impl Connection {
         Ok(buf)
     }
 
-    fn read_frame(stream: &mut TcpStream, msg_tx: &Sender<Message>, write_tx: &Sender<Vec<u8>>) -> std::io::Result<()> {
+    fn read_frame(stream: &mut TcpStream, msg_tx: &Sender<Message>, write_tx: &Sender<Command>) -> std::io::Result<()> {
         let mut buf = [0; 4];
         stream.read(&mut buf)?;
 

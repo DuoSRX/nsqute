@@ -60,7 +60,7 @@ impl Consumer {
     pub fn connect_to_nsqd(&mut self, address: &str) {
         let mut connection = Connection::connect(address);
 
-        connection.send_command(Command::Subscribe { topic: &self.topic, channel: &self.channel });
+        connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() });
         connection.send_command(Command::Ready(2));
 
         let connection_messages = connection.messages.rx.clone();
