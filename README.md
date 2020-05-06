@@ -4,7 +4,12 @@ Work in progress
 
 ## TODO
 
+* ~~Consumer~~
+  * Message Flow Starvation
+  * Backoff on failure
 * ~~Producer~~
+  * MPUB
+  * DPUB
 * Error handling
   * Reconnection on failure
   * Acknowledge non-fatal errors (`FIN_FAILED`...etc)
@@ -15,6 +20,11 @@ Work in progress
 * Configuration
   * Pick a configuration style (TOML, JSON, flags...)
 * RDY and max_in_flight rebalancing
+* IDENTIFY and feature negotiation
 * Better logging
 * Do some benchmarking
 * Mayyyyyybe use Async
+* Additional stuff:
+  * Deflate
+  * Snappy
+  * TLS
