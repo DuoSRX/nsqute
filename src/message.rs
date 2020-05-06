@@ -17,15 +17,15 @@ impl Message {
     }
 
     pub fn finish(&self) {
-        self.conn_chan.send(Command::Finish(self.id.clone())).unwrap();
+        // self.conn_chan.send(Command::Finish(self.id.clone())).unwrap();
     }
 
     pub fn requeue(&self) {
-        self.conn_chan.send(Command::Requeue(self.id.clone(), 5000)).unwrap();
+        // self.conn_chan.send(Command::Requeue(self.id.clone(), 5000)).unwrap();
     }
 
     pub fn touch(&self) {
-        self.conn_chan.send(Command::Touch(self.id.clone())).unwrap();
+        // self.conn_chan.send(Command::Touch(self.id.clone())).unwrap();
     }
 }
 

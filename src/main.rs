@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod async_connection;
 pub mod channel;
 pub mod connection;
 pub mod command;
@@ -11,9 +12,6 @@ use consumer::*;
 use message::Message;
 use producer::Producer;
 
-// use std::thread;
-// use std::time::Duration;
-
 struct Handler {}
 
 impl MessageHandler for Handler {
@@ -23,27 +21,31 @@ impl MessageHandler for Handler {
     }
 }
 
-fn main() -> std::io::Result<()> {
-    let mut consumer = Consumer::new("plumber_backfills", "plumber");
-    consumer.add_handler(Box::new(Handler{}));
-    consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
 
-    let mut producer = Producer::new("127.0.0.1:4150".to_string());
-    producer.connect()?;
-    producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into());
+#[tokio::main]
+async fn main() {
+    let mut consumer = Consumer::new("plumber_backfills", "plumber");
+    // consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
+    consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
+
+    for message in consumer.messages.1.recv().await {
+        dbg!(message);
+    }
 
     let _ = consumer.done.rx.recv();
 
-    // let identify = "{\"client_id\":\"nsqute\"}".as_bytes();
-    // let mut msg = Vec::new();
-    // msg.put(&b"IDENTIFY\n"[..]);
-    // msg.put_u32(identify.len() as u32);
-    // msg.put(identify);
-    // stream.write(&msg)?;
-
-    // let mut buf = [0; 4 + 4 + 6];
-    // stream.read(&mut buf)?;
-    // dbg!(String::from_utf8_lossy(&buf));
-
-    Ok(())
+    // let mut producer = Producer::new("127.0.0.1:4150".to_string());
+    // producer.connect().await?;
+    // producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into());
 }
+
+//     // let identify = "{\"client_id\":\"nsqute\"}".as_bytes();
+//     // let mut msg = Vec::new();
+//     // msg.put(&b"IDENTIFY\n"[..]);
+//     // msg.put_u32(identify.len() as u32);
+//     // msg.put(identify);
+//     // stream.write(&msg)?;
+
+//     // let mut buf = [0; 4 + 4 + 6];
+//     // stream.read(&mut buf)?;
+//     // dbg!(String::from_utf8_lossy(&buf));

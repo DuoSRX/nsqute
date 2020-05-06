@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::ToSocketAddrs;
-use std::thread;
+use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
+use tokio::sync::{mpsc};
 
 use crate::channel::Channel;
 use crate::command::Command;
 use crate::message::Message;
-use crate::connection::Connection;
+use crate::async_connection::Connection;
 
 pub trait MessageHandler {
     fn handle_message(&self, message: Message);
@@ -16,7 +16,7 @@ pub struct Consumer {
     topic: String,
     channel: String,
     connections: HashMap<String, Connection>,
-    messages: Channel<Message>,
+    pub messages: (UnboundedSender<Message>, UnboundedReceiver<Message>),
     pub done: Channel<bool>,
 }
 
@@ -36,7 +36,7 @@ struct NsqLookupdResponse {
 
 impl Consumer {
     pub fn new(topic: &str, channel: &str) -> Self {
-        let messages = Channel::unbounded();
+        let (tx, rx) = mpsc::unbounded_channel();
         let done = Channel::unbounded();
 
         Self {
@@ -44,54 +44,53 @@ impl Consumer {
             channel: channel.to_string(),
             connections: HashMap::new(),
             done,
-            messages,
+            messages: (tx, rx),
         }
     }
 
-    pub fn connect_to_nsqlookupd(&mut self, address: &str) {
-        let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
+    // pub fn connect_to_nsqlookupd(&mut self, address: &str) {
+    //     let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
 
-        for producer in res.producers {
-            let broadcast: &str = &producer.broadcast_address;
-            let address = (broadcast, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
-            // TODO: Remove handle errors here
-            self.connect_to_nsqd(&address.to_string()).unwrap()
-        }
-    }
+    //     for producer in res.producers {
+    //         let broadcast: &str = &producer.broadcast_address;
+    //         let address = (broadcast, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
+    //         // TODO: Remove handle errors here
+    //         self.connect_to_nsqd(&address.to_string()).unwrap()
+    //     }
+    // }
 
-    pub fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
-        let mut connection = Connection::connect(address)?;
+    pub async fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
+        let mut connection = Connection::connect(address).await?;
 
         connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() });
         connection.send_command(Command::Ready(2));
 
-        let connection_messages = connection.messages.rx.clone();
-        let incoming_messages = self.messages.tx.clone();
+        // let connection_messages = connection.messages.clone();
+        let incoming_messages = self.messages.0.clone();
 
-        thread::spawn(move || {
+        tokio::spawn(async move {
             loop {
-                incoming_messages.send(connection_messages.recv().unwrap()).unwrap();
+                let message = connection.messages.recv().await.unwrap();
+                incoming_messages.send(message).unwrap();
             }
         });
 
         // TODO: Check if we're already connected
-        self.connections.insert(address.to_string(), connection);
+        // self.connections.insert(address.to_string(), connection);
 
         Ok(())
     }
 
-    pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {
-        let rx = self.messages.rx.clone();
+    // pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {
+    //     let rx = self.messages.1.clone();
 
-        thread::spawn(move || {
-            loop {
-                match rx.recv() {
-                    Ok(msg) => handler.handle_message(msg),
-                    Err(err) => {
-                        dbg!(err);
-                    }
-                }
-            }
-        });
-    }
+    //     tokio::spawn(async move {
+    //         loop {
+    //             match rx.recv().await {
+    //                 Some(msg) => handler.handle_message(msg),
+    //                 None => (),
+    //             }
+    //         }
+    //     });
+    // }
 }
