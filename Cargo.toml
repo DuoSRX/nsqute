@@ -1,8 +1,11 @@
 [package]
 name = "nsqute"
 version = "0.1.0"
-authors = ["Xavier Perez <xperez@fastly.com>"]
+authors = ["Xavier Perez <duosrx@gmail.com>"]
 edition = "2018"
+license = "MIT"
+readme = "README.md"
+description = "NSQ Client"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
