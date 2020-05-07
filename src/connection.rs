@@ -9,19 +9,17 @@ use crate::command::Command;
 use crate::message::Message;
 
 pub struct Connection {
-    pub messages: UnboundedReceiver<Message>,
     pub commands: UnboundedSender<Command>,
 }
 
 impl Connection {
-    pub async fn connect(address: &str) -> std::io::Result<Self> {
+    pub async fn connect(address: &str, messages: Option<UnboundedSender<Message>>) -> std::io::Result<Self> {
         let mut stream = TcpStream::connect(address).await?;
         stream.write_all(b"  V2").await?;
 
         let (mut r, mut w) = stream.into_split();
 
         let (cmd_tx, mut cmd_rx): (UnboundedSender<Command>, UnboundedReceiver<Command>) = mpsc::unbounded_channel();
-        let (msg_tx, msg_rx): (UnboundedSender<Message>, UnboundedReceiver<Message>) = mpsc::unbounded_channel();
 
         tokio::spawn(async move {
             loop {
@@ -34,13 +32,13 @@ impl Connection {
         let cmd = cmd_tx.clone();
         tokio::spawn(async move {
             loop {
-                Connection::read_frame(&mut r, &msg_tx, &cmd).await.unwrap();
+                Connection::read_frame(&mut r, &messages, &cmd).await.unwrap();
             }
         });
 
         Ok(Connection {
             commands: cmd_tx,
-            messages: msg_rx,
+            // messages: msg_rx,
         })
     }
 
@@ -48,7 +46,7 @@ impl Connection {
         self.commands.send(command).unwrap();
     }
 
-    async fn read_frame(stream: &mut OwnedReadHalf, msg_tx: &UnboundedSender<Message>, write_tx: &UnboundedSender<Command>) -> std::io::Result<()> {
+    async fn read_frame(stream: &mut OwnedReadHalf, msg_tx: &Option<UnboundedSender<Message>>, write_tx: &UnboundedSender<Command>) -> std::io::Result<()> {
         let mut buf = [0; 4];
         stream.read_exact(&mut buf).await?;
 
@@ -80,8 +78,10 @@ impl Connection {
         };
 
         // dbg!(&message);
+        if let Some(tx) = msg_tx {
+            tx.send(message).unwrap();
+        }
 
-        msg_tx.send(message).unwrap();
 
         Ok(())
     }

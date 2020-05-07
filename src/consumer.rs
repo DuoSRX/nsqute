@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio::sync::{oneshot,mpsc};
+use std::sync::Arc;
+use tokio::sync::{oneshot,mpsc,Mutex};
 use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
@@ -11,7 +12,7 @@ use crate::connection::Connection;
 pub struct Consumer {
     topic: String,
     channel: String,
-    connections: HashMap<String, Connection>,
+    connections: Arc<Mutex<HashMap<String, Connection>>>,
     pub messages: (UnboundedSender<Message>, UnboundedReceiver<Message>),
     pub done: (Sender<bool>, Receiver<bool>),
 }
@@ -38,7 +39,7 @@ impl Consumer {
         Self {
             topic: topic.to_string(),
             channel: channel.to_string(),
-            connections: HashMap::new(),
+            connections: Arc::new(Mutex::new(HashMap::new())),
             done,
             messages,
         }
@@ -56,22 +57,14 @@ impl Consumer {
     }
 
     pub async fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
-        let mut connection = Connection::connect(address).await?;
+        let mut connection = Connection::connect(address, Some(self.messages.0.clone())).await?;
 
         connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() }).await;
         connection.send_command(Command::Ready(2)).await;
 
-        let incoming_messages = self.messages.0.clone();
-
-        tokio::spawn(async move {
-            loop {
-                let message = connection.messages.recv().await.unwrap();
-                incoming_messages.send(message).unwrap();
-            }
-        });
-
         // TODO: Check if we're already connected
-        // self.connections.insert(address.to_string(), connection);
+        let mut conns = self.connections.lock().await;
+        conns.insert(address.to_string(), connection);
 
         Ok(())
     }

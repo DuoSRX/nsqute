@@ -15,7 +15,7 @@ impl Producer {
     }
 
     pub async fn connect(&mut self) -> std::io::Result<()> {
-        let conn = Connection::connect(&self.address).await?;
+        let conn = Connection::connect(&self.address, None).await?;
         self.connection = Some(conn);
         Ok(())
     }
