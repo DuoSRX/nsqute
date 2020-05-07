@@ -44,16 +44,16 @@ impl Consumer {
         }
     }
 
-    // pub fn connect_to_nsqlookupd(&mut self, address: &str) {
-    //     let res: NsqLookupdResponse = reqwest::blocking::get(address).unwrap().json().unwrap();
+    pub async fn connect_to_nsqlookupd(&mut self, address: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let res: NsqLookupdResponse = reqwest::get(address).await?.json().await?;
 
-    //     for producer in res.producers {
-    //         let broadcast: &str = &producer.broadcast_address;
-    //         let address = (broadcast, producer.tcp_port).to_socket_addrs().unwrap().next().unwrap();
-    //         // TODO: Remove handle errors here
-    //         self.connect_to_nsqd(&address.to_string()).unwrap()
-    //     }
-    // }
+        for producer in res.producers {
+            let address = format!("{}:{}", producer.broadcast_address, producer.tcp_port);
+            self.connect_to_nsqd(&address.to_string()).await.unwrap();
+        }
+
+        Ok(())
+    }
 
     pub async fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
         let mut connection = Connection::connect(address).await?;

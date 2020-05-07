@@ -13,8 +13,8 @@ use producer::Producer;
 #[tokio::main]
 async fn main() {
     let mut consumer = Consumer::new("plumber_backfills", "plumber");
-    // consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
-    consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
+    consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills").await.unwrap();
+    // consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
 
     let mut producer = Producer::new("127.0.0.1:4150".to_string());
     producer.connect().await.unwrap();
