@@ -8,17 +8,7 @@ pub mod message;
 pub mod producer;
 
 use consumer::*;
-use message::Message;
 use producer::Producer;
-
-struct Handler {}
-
-impl MessageHandler for Handler {
-    fn handle_message(&self, message: Message) {
-        dbg!(&message);
-        message.requeue();
-    }
-}
 
 #[tokio::main]
 async fn main() {

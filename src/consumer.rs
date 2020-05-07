@@ -4,14 +4,9 @@ use tokio::sync::{oneshot,mpsc};
 use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
-// use crate::channel::Channel;
 use crate::command::Command;
 use crate::message::Message;
 use crate::connection::Connection;
-
-pub trait MessageHandler {
-    fn handle_message(&self, message: Message);
-}
 
 pub struct Consumer {
     topic: String,
@@ -80,17 +75,4 @@ impl Consumer {
 
         Ok(())
     }
-
-    // pub fn add_handler(&mut self, handler: Box<dyn MessageHandler + Send>) {
-    //     let rx = self.messages.1.clone();
-
-    //     tokio::spawn(async move {
-    //         loop {
-    //             match rx.recv().await {
-    //                 Some(msg) => handler.handle_message(msg),
-    //                 None => (),
-    //             }
-    //         }
-    //     });
-    // }
 }
