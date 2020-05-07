@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-pub mod async_connection;
 pub mod channel;
 pub mod connection;
 pub mod command;
@@ -21,22 +20,24 @@ impl MessageHandler for Handler {
     }
 }
 
-
 #[tokio::main]
 async fn main() {
     let mut consumer = Consumer::new("plumber_backfills", "plumber");
     // consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills");
     consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
 
-    for message in consumer.messages.1.recv().await {
-        dbg!(message);
+    let mut producer = Producer::new("127.0.0.1:4150".to_string());
+    producer.connect().await.unwrap();
+    producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into()).await;
+
+    loop {
+        for message in consumer.messages.1.recv().await {
+            message.requeue();
+            dbg!(message);
+        }
     }
 
-    let _ = consumer.done.rx.recv();
-
-    // let mut producer = Producer::new("127.0.0.1:4150".to_string());
-    // producer.connect().await?;
-    // producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into());
+    // consumer.done.1.await.unwrap();
 }
 
 //     // let identify = "{\"client_id\":\"nsqute\"}".as_bytes();

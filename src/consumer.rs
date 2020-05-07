@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tokio::sync::{oneshot,mpsc};
+use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
-use tokio::sync::{mpsc};
 
-use crate::channel::Channel;
+// use crate::channel::Channel;
 use crate::command::Command;
 use crate::message::Message;
-use crate::async_connection::Connection;
+use crate::connection::Connection;
 
 pub trait MessageHandler {
     fn handle_message(&self, message: Message);
@@ -17,7 +18,7 @@ pub struct Consumer {
     channel: String,
     connections: HashMap<String, Connection>,
     pub messages: (UnboundedSender<Message>, UnboundedReceiver<Message>),
-    pub done: Channel<bool>,
+    pub done: (Sender<bool>, Receiver<bool>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,15 +37,15 @@ struct NsqLookupdResponse {
 
 impl Consumer {
     pub fn new(topic: &str, channel: &str) -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let done = Channel::unbounded();
+        let messages = mpsc::unbounded_channel();
+        let done = oneshot::channel();
 
         Self {
             topic: topic.to_string(),
             channel: channel.to_string(),
             connections: HashMap::new(),
             done,
-            messages: (tx, rx),
+            messages,
         }
     }
 
@@ -62,10 +63,9 @@ impl Consumer {
     pub async fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
         let mut connection = Connection::connect(address).await?;
 
-        connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() });
-        connection.send_command(Command::Ready(2));
+        connection.send_command(Command::Subscribe { topic: self.topic.clone(), channel: self.channel.clone() }).await;
+        connection.send_command(Command::Ready(2)).await;
 
-        // let connection_messages = connection.messages.clone();
         let incoming_messages = self.messages.0.clone();
 
         tokio::spawn(async move {
