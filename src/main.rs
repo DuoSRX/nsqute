@@ -16,9 +16,9 @@ async fn main() {
     consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills").await.unwrap();
     // consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
 
-    let mut producer = Producer::new("127.0.0.1:4150".to_string());
-    producer.connect().await.unwrap();
-    producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into()).await;
+    // let mut producer = Producer::new("127.0.0.1:4152".to_string());
+    // producer.connect().await.unwrap();
+    // producer.publish("plumber_backfills".into(), b"foo bar baz"[..].into()).await;
 
     loop {
         for message in consumer.messages.1.recv().await {

@@ -1,4 +1,5 @@
 use byteorder::{BigEndian, ByteOrder};
+use std::sync::{Arc, RwLock};
 use tokio::prelude::*;
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf};
@@ -7,6 +8,22 @@ use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
 use crate::command::Command;
 use crate::message::Message;
+
+struct ConnectionState {
+    max_rdy: u64,
+    last_rdy: u64,
+    rdy: u64,
+}
+
+impl ConnectionState {
+    pub fn new() -> Self {
+        Self {
+            max_rdy: 10, // TODO: use the IDENTIFY response max_rdy
+            last_rdy: 0,
+            rdy: 0,
+        }
+    }
+}
 
 pub struct Connection {
     pub commands: UnboundedSender<Command>,
@@ -20,6 +37,8 @@ impl Connection {
         let (mut r, mut w) = stream.into_split();
 
         let (cmd_tx, mut cmd_rx): (UnboundedSender<Command>, UnboundedReceiver<Command>) = mpsc::unbounded_channel();
+
+        // let state = Arc::new(RwLock::new(ConnectionState::new()));
 
         tokio::spawn(async move {
             loop {
@@ -38,7 +57,6 @@ impl Connection {
 
         Ok(Connection {
             commands: cmd_tx,
-            // messages: msg_rx,
         })
     }
 
