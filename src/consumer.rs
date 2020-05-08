@@ -5,7 +5,6 @@ use tokio::sync::{oneshot,mpsc,RwLock};
 use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
-use crate::command::Command;
 use crate::message::Message;
 use crate::connection::Connection;
 
@@ -69,7 +68,7 @@ impl Consumer {
                         continue
                     }
 
-                    let connection = Consumer::new_nsqd_connection(&address, topic.clone(), channel.clone(), messages.clone()).await.unwrap();
+                    let connection = Consumer::new_nsqd_connection(&address, &topic, &channel, messages.clone()).await.unwrap();
                     let mut conns = connections.write().await;
                     conns.insert(address, connection);
                 }
@@ -79,18 +78,17 @@ impl Consumer {
         Ok(())
     }
 
-    async fn new_nsqd_connection(address: &str, topic: String, channel: String, messages: UnboundedSender<Message>) -> std::io::Result<Connection> {
+    async fn new_nsqd_connection(address: &str, topic: &str, channel: &str, messages: UnboundedSender<Message>) -> std::io::Result<Connection> {
         let mut connection = Connection::connect(address, Some(messages)).await?;
-
-        connection.send_command(Command::Subscribe { topic: topic, channel: channel }).await;
-        connection.send_command(Command::Ready(2)).await;
+        connection.subscribe(topic, channel).await;
+        connection.ready(2).await;
 
         Ok(connection)
     }
 
     pub async fn connect_to_nsqd(&mut self, address: &str) -> std::io::Result<()> {
         let messages = self.messages.0.clone();
-        let connection = Consumer::new_nsqd_connection(address, self.topic.clone(), self.channel.clone(), messages).await?;
+        let connection = Consumer::new_nsqd_connection(address, &self.topic, &self.channel, messages).await?;
 
         // TODO: Check if we're already connected
         let mut conns = self.connections.write().await;

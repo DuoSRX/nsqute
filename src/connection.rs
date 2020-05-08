@@ -59,6 +59,15 @@ impl Connection {
         })
     }
 
+    pub async fn ready(&mut self, n: usize) {
+        self.send_command(Command::Ready(n)).await;
+    }
+
+    pub async fn subscribe(&mut self, topic: &str, channel: &str) {
+        let cmd = Command::Subscribe { topic: topic.into(), channel: channel.into() };
+        self.send_command(cmd).await;
+    }
+
     pub async fn send_command(&mut self, command: Command) {
         self.commands.send(command).unwrap();
     }
