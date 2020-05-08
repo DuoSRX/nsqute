@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc,RwLock};
-use tokio::sync::{oneshot,mpsc};
+use std::sync::{Arc};
+use tokio::sync::{oneshot,mpsc,RwLock};
 use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
@@ -64,13 +64,13 @@ impl Consumer {
 
                 for producer in res.producers {
                     let address = format!("{}:{}", producer.broadcast_address, producer.tcp_port);
-                    let has_key = connections.read().unwrap().contains_key(&address);
+                    let has_key = connections.read().await.contains_key(&address);
                     if has_key {
                         continue
                     }
 
                     let connection = Consumer::new_nsqd_connection(&address, topic.clone(), channel.clone(), messages.clone()).await.unwrap();
-                    let mut conns = connections.write().unwrap();
+                    let mut conns = connections.write().await;
                     conns.insert(address, connection);
                 }
             }
@@ -93,16 +93,16 @@ impl Consumer {
         let connection = Consumer::new_nsqd_connection(address, self.topic.clone(), self.channel.clone(), messages).await?;
 
         // TODO: Check if we're already connected
-        let mut conns = self.connections.write().unwrap();
+        let mut conns = self.connections.write().await;
         conns.insert(address.to_string(), connection);
 
         Ok(())
     }
 
-    fn per_connection_max_in_flight(&self) -> u64 {
-        let conns = (*self.connections.read().unwrap()).len();
-        let a = self.max_in_flight as f64;
-        let s = a / conns as f64;
-        s.max(1.0).min(a) as u64
-    }
+    // fn per_connection_max_in_flight(&self) -> u64 {
+    //     let conns = (*self.connections.read().await).len();
+    //     let a = self.max_in_flight as f64;
+    //     let s = a / conns as f64;
+    //     s.max(1.0).min(a) as u64
+    // }
 }

@@ -1,5 +1,4 @@
 use byteorder::{BigEndian, ByteOrder};
-use std::sync::{Arc, RwLock};
 use tokio::prelude::*;
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf};
