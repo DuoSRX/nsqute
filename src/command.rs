@@ -1,6 +1,9 @@
+use actix::prelude::*;
 use bytes::{BufMut};
 
 #[derive(Debug)]
+#[derive(Message)]
+#[rtype(result = "()")]
 pub enum Command {
     Nop,
     Finish(String),
