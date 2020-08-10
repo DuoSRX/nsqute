@@ -1,4 +1,5 @@
 use byteorder::{BigEndian, ByteOrder};
+use log::debug;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf};
@@ -43,7 +44,7 @@ impl Connection {
             loop {
                 let cmd = cmd_rx.recv().await.unwrap();
                 w.write_all(&cmd.make()).await.unwrap();
-                dbg!(&cmd);
+                debug!("{:?}", cmd);
             }
         });
 
@@ -85,8 +86,8 @@ impl Connection {
                 return Ok(())
             },
             1 => { // Error
-                dbg!(size);
-                dbg!(String::from_utf8_lossy(&buf[4..]));
+                debug!("{}", size);
+                debug!("{}", String::from_utf8_lossy(&buf[4..]));
                 return Ok(())
             },
             2 => {}, // Message
@@ -105,11 +106,9 @@ impl Connection {
             conn_chan: write_tx.clone(),
         };
 
-        // dbg!(&message);
         if let Some(tx) = msg_tx {
             tx.send(message).unwrap();
         }
-
 
         Ok(())
     }

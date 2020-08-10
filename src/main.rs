@@ -16,7 +16,8 @@ static LOGGER: SimpleLogger = SimpleLogger;
 
 #[tokio::main]
 async fn main() {
-    log::set_logger(&LOGGER).map(|_| log::set_max_level(log::LevelFilter::Info)).unwrap();
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
 
     let mut consumer = Consumer::new("foo_topic", "plumber");
     consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=foo_topic").await.unwrap();
@@ -28,7 +29,7 @@ async fn main() {
     loop {
         for message in consumer.messages.1.recv().await {
             message.requeue();
-            dbg!(message);
+            log::debug!("{:?}", message);
         }
     }
 
