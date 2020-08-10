@@ -1,4 +1,3 @@
-use log::{warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc};
@@ -6,8 +5,9 @@ use tokio::sync::{oneshot,mpsc,RwLock};
 use tokio::sync::oneshot::{Sender, Receiver};
 use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 
-use crate::message::Message;
 use crate::connection::Connection;
+use crate::lookup::Lookup;
+use crate::message::Message;
 
 pub struct Consumer {
     topic: String,
@@ -48,38 +48,21 @@ impl Consumer {
     }
 
     pub async fn connect_to_nsqlookupd(&mut self, address: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut lookup = Lookup::new(&self.topic, &self.channel);
+        let mut rx = lookup.connect(address).await?;
         let connections = self.connections.clone();
         let topic = self.topic.clone();
         let channel = self.channel.clone();
-        let address = String::from(address);
         let messages = self.messages.0.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
-
             loop {
-                interval.tick().await;
-
-                let res = reqwest::get(&address).await.unwrap().json::<NsqLookupdResponse>().await;
-                match res {
-                    Err(err) => {
-                        warn!("Lookupd error: {}", err);
-                    },
-                    Ok(response) => {
-                        for producer in response.producers {
-                            let address = format!("{}:{}", producer.broadcast_address, producer.tcp_port);
-                            let has_key = connections.read().await.contains_key(&address);
-                            if has_key {
-                                continue
-                            }
-
-                            let connection = Consumer::new_nsqd_connection(&address, &topic, &channel, messages.clone()).await.unwrap();
-                            let mut conns = connections.write().await;
-                            conns.insert(address, connection);
-                        }
-                    }
+                let nsqds = rx.recv().await.unwrap(); // TODO: Handle recv errors (is it even likely?)
+                for nsq in nsqds {
+                    let connection = Consumer::new_nsqd_connection(&nsq, &topic, &channel, messages.clone()).await.unwrap();
+                    let mut conns = connections.write().await;
+                    conns.insert(nsq, connection);
                 }
-
             }
         });
 

@@ -4,6 +4,7 @@ pub mod command;
 pub mod connection;
 pub mod consumer;
 pub mod message;
+pub mod lookup;
 pub mod producer;
 pub mod simple_logger;
 
@@ -17,9 +18,8 @@ static LOGGER: SimpleLogger = SimpleLogger;
 async fn main() {
     log::set_logger(&LOGGER).map(|_| log::set_max_level(log::LevelFilter::Info)).unwrap();
 
-    let mut consumer = Consumer::new("plumber_backfills", "plumber");
-    consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=plumber_backfills").await.unwrap();
-    // consumer.connect_to_nsqd("127.0.0.1:4150").await.unwrap();
+    let mut consumer = Consumer::new("foo_topic", "plumber");
+    consumer.connect_to_nsqlookupd("http://127.0.0.1:4161/lookup?topic=foo_topic").await.unwrap();
 
     // let mut producer = Producer::new("127.0.0.1:4152".to_string());
     // producer.connect().await.unwrap();
