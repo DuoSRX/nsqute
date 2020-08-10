@@ -15,7 +15,7 @@ Work in progress
   * Acknowledge non-fatal errors (`FIN_FAILED`...etc)
 * Nsqlookupd
   * ~~Connect to multiple nsqds~~
-  * Polling for new servers
+  * ~Polling for new servers~
   * Handle servers added/removed
 * Configuration
   * Pick a configuration style (TOML, JSON, flags...)

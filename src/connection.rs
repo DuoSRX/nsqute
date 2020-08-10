@@ -82,7 +82,6 @@ impl Connection {
 
         match BigEndian::read_i32(&buf[0..4]) {
             0 => { // Response
-                // dbg!(String::from_utf8_lossy(&buf[4..]));
                 return Ok(())
             },
             1 => { // Error
@@ -91,7 +90,10 @@ impl Connection {
                 return Ok(())
             },
             2 => {}, // Message
-            n => panic!("Unknown frame type: {}", n)
+            n => {
+                let message = format!("Unknown frame type: {}", n);
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, message));
+            }
         };
 
         let buf = &buf[4..];
