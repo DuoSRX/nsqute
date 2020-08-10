@@ -29,7 +29,7 @@ impl Lookup {
         }
     }
 
-    pub async fn connect(&mut self, address: &str) -> Result<Receiver<Vec<String>>, Box<dyn std::error::Error>> {
+    pub async fn connect(&mut self, address: &str) -> Receiver<Vec<String>> {
         let address = String::from(address);
         let (tx, rx) = watch::channel(vec![]);
 
@@ -52,6 +52,6 @@ impl Lookup {
             }
         });
 
-        Ok(rx)
+        rx
     }
 }

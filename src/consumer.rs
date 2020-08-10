@@ -49,7 +49,7 @@ impl Consumer {
 
     pub async fn connect_to_nsqlookupd(&mut self, address: &str) -> Result<(), Box<dyn std::error::Error>> {
         let mut lookup = Lookup::new(&self.topic, &self.channel);
-        let mut rx = lookup.connect(address).await?;
+        let mut rx = lookup.connect(address).await;
         let connections = self.connections.clone();
         let topic = self.topic.clone();
         let channel = self.channel.clone();
@@ -59,6 +59,8 @@ impl Consumer {
             loop {
                 let nsqds = rx.recv().await.unwrap(); // TODO: Handle recv errors (is it even likely?)
                 for nsq in nsqds {
+                    let has_key = connections.read().await.contains_key(&nsq);
+                    if has_key { continue }
                     let connection = Consumer::new_nsqd_connection(&nsq, &topic, &channel, messages.clone()).await.unwrap();
                     let mut conns = connections.write().await;
                     conns.insert(nsq, connection);
