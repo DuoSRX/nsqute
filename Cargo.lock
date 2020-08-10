@@ -493,6 +493,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "crossbeam-channel",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

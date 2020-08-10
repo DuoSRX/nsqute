@@ -23,7 +23,6 @@ Work in progress
 * IDENTIFY and feature negotiation
 * Better logging
 * Do some benchmarking
-* Mayyyyyybe use Async
 * Additional stuff:
   * Deflate
   * Snappy
