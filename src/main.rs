@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+// NOTE: This file is exclusively for local testing and dev and will be deleted
+// once the library has reached a useable level. Don't pay attention to it!
+
 pub mod command;
 pub mod connection;
 pub mod consumer;

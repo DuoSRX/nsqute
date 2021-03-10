@@ -9,24 +9,27 @@ use tokio::sync::mpsc::{UnboundedSender,UnboundedReceiver};
 use crate::command::Command;
 use crate::message::Message;
 
-struct ConnectionState {
-    max_rdy: u64,
-    last_rdy: u64,
-    rdy: u64,
-}
+// struct ConnectionState {
+//     pub max_rdy: u64,
+//     pub last_rdy: u64,
+//     pub rdy: u64,
+// }
 
-impl ConnectionState {
-    pub fn new() -> Self {
-        Self {
-            max_rdy: 10, // TODO: use the IDENTIFY response max_rdy
-            last_rdy: 0,
-            rdy: 0,
-        }
-    }
-}
+// impl ConnectionState {
+//     pub fn new() -> Self {
+//         Self {
+//             max_rdy: 10, // TODO: use the IDENTIFY response max_rdy
+//             last_rdy: 0,
+//             rdy: 0,
+//         }
+//     }
+// }
 
 pub struct Connection {
     pub commands: UnboundedSender<Command>,
+    pub max_rdy: u64,
+    pub last_rdy: u64,
+    pub rdy: u64,
 }
 
 impl Connection {
@@ -57,7 +60,22 @@ impl Connection {
 
         Ok(Connection {
             commands: cmd_tx,
+            max_rdy: 10, // TODO: use the IDENTIFY response max_rdy
+            last_rdy: 0,
+            rdy: 0,
         })
+    }
+
+    pub async fn set_rdy(&mut self, n: u64) {
+        self.rdy = n;
+
+        if n == self.last_rdy {
+            return
+        }
+
+        dbg!("Setting new ready count", n);
+
+        self.ready(n as usize).await;
     }
 
     pub async fn ready(&mut self, n: usize) {
